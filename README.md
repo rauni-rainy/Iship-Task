@@ -1,17 +1,18 @@
-# ContestHub 🏆
+# ContestHub 
 
 ContestHub is a fully-featured, real-time Competitive Programming Platform built to host, manage, and participate in coding contests. It features secure anti-cheat mechanisms, real-time leaderboards, and a seamless developer experience powered by WebSockets.
 
-## 🌟 Key Features
+##  Key Features
 
 * **Real-time Leaderboards:** Instantly updated rankings powered by Socket.io.
 * **Anti-Cheat System:** Built-in fullscreen enforcement and copy-paste prevention to maintain contest integrity.
 * **Live Contest Management:** Organizers get a real-time admin dashboard to monitor participants, approve join requests, and view live status.
 * **Secure Authentication:** JWT-based authentication with secure `httpOnly` cross-site cookies.
 * **Responsive UI:** A modern, dark-themed UI built with Next.js and Tailwind CSS.
+**Security and Attacks:** Proper protocols set up for XSS attacks, CSRF tokens, reverse proxy and load balancing.
 * **Cloud Native:** Fully Dockerized architecture ready for deployment on Google Cloud Run.
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 * **Frontend:** Next.js (App Router), React, Tailwind CSS, TypeScript
 * **Backend:** Node.js, Express.js, TypeScript
@@ -19,7 +20,7 @@ ContestHub is a fully-featured, real-time Competitive Programming Platform built
 * **Real-time Communication:** Socket.io
 * **Deployment:** Docker, Google Cloud Run
 
-## 🚀 Getting Started Locally
+##  Getting Started Locally
 
 ### Prerequisites
 * Node.js 18+
@@ -86,7 +87,7 @@ npm run dev
 
 The frontend will be available at `http://localhost:3000` and the backend at `http://localhost:4000`.
 
-## ☁️ Deployment
+##  Deployment
 
 ContestHub is designed to be easily deployed to Google Cloud Run using Docker.
 
@@ -103,5 +104,5 @@ cd frontend
 gcloud run deploy iship-frontend --source . --region us-central1 --allow-unauthenticated
 ```
 
-## 📜 License
+##  License
 This project is licensed under the MIT License.
