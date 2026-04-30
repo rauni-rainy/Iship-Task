@@ -253,7 +253,7 @@ export default function ManageContestPage() {
           </div>
           <div className="flex items-center gap-4">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => router.push(`/admin/${contestId}`)}
               className="border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/10 dark:text-indigo-400 font-semibold"
             >

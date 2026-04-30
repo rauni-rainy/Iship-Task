@@ -8,13 +8,14 @@ const isProduction = process.env.NODE_ENV === 'production';
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: isProduction,
-  sameSite: 'strict' as const,
+  sameSite: (isProduction ? 'none' : 'strict') as 'none' | 'strict',
   path: '/',
 };
 
 const setAuthCookies = (res: Response, accessToken: string, refreshToken: string) => {
   res.cookie('access_token', accessToken, {
     ...COOKIE_OPTIONS,
+    httpOnly: false, // Allow frontend JS to read for WebSocket auth
     maxAge: 15 * 60 * 1000, // 15 mins
   });
 
@@ -30,7 +31,7 @@ const generateAndSetCsrfToken = (res: Response) => {
   res.cookie('csrf_token', csrfToken, {
     httpOnly: false,
     secure: isProduction,
-    sameSite: 'strict' as const,
+    sameSite: (isProduction ? 'none' : 'strict') as 'none' | 'strict',
     path: '/',
   });
   return csrfToken;
@@ -41,7 +42,7 @@ export const getCsrfToken = asyncWrapper(async (req: Request, res: Response) => 
   res.cookie('csrf_token', csrfToken, {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: (process.env.NODE_ENV === 'production' ? 'none' : 'strict') as 'none' | 'strict',
     path: '/'
   });
   res.status(200).json({ success: true, csrfToken });
@@ -84,6 +85,7 @@ export const refresh = asyncWrapper(async (req: Request, res: Response) => {
 
   res.cookie('access_token', newAccessToken, {
     ...COOKIE_OPTIONS,
+    httpOnly: false,
     maxAge: 15 * 60 * 1000, // 15 mins
   });
 

@@ -25,6 +25,7 @@ type ContestWithExtra = Contest & {
     reApplyCount: number;
     decidedAt: string | null;
   };
+  isFlagged?: boolean;
 };
 
 export default function ContestDetailPage() {

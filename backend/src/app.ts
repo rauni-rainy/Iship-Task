@@ -16,6 +16,9 @@ import { globalErrorHandler } from './utils/errorHandler';
 
 const app = express();
 
+// Trust proxy for rate limiting on Google Cloud Run
+app.set('trust proxy', 1);
+
 // Set strict CSP headers and general security headers
 app.use(helmet({
   contentSecurityPolicy: {

@@ -1,17 +1,47 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
+const isBrowser = typeof window !== 'undefined';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const axiosClient = axios.create({
-  baseURL: API_URL,
+  baseURL: isBrowser ? '' : API_URL,
   withCredentials: true,
 });
 
-axiosClient.interceptors.request.use((config) => {
-  const csrfToken = Cookies.get('csrf_token');
-  if (csrfToken) {
-    config.headers['X-CSRF-Token'] = csrfToken;
+let cachedCsrfToken: string | null = null;
+let csrfTokenPromise: Promise<string | null> | null = null;
+
+const fetchCsrfToken = async () => {
+  if (csrfTokenPromise) return csrfTokenPromise;
+  
+  csrfTokenPromise = axios.get('/api/auth/csrf-token', { 
+    baseURL: isBrowser ? '' : API_URL, 
+    withCredentials: true 
+  })
+    .then(res => {
+      cachedCsrfToken = res.data.csrfToken;
+      return cachedCsrfToken;
+    })
+    .catch(() => null);
+    
+  return csrfTokenPromise;
+};
+
+axiosClient.interceptors.request.use(async (config) => {
+  // Only add CSRF token to state-changing requests
+  if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
+    // Try to get from cookie (works locally) or from cache
+    let token = Cookies.get('csrf_token') || cachedCsrfToken;
+    
+    // If neither exists, fetch it from the backend API
+    if (!token) {
+      token = await fetchCsrfToken();
+    }
+    
+    if (token) {
+      config.headers['X-CSRF-Token'] = token;
+    }
   }
   return config;
 });

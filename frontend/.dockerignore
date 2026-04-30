@@ -2,7 +2,8 @@ node_modules
 .next
 out
 .git
-.env*
+.env.local
+.env.development
 .DS_Store
 Dockerfile
 .dockerignore

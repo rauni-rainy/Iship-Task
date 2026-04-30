@@ -20,7 +20,7 @@ export default function ContestArena() {
   const router = useRouter();
   const { user } = useAuthStore();
 
-  const [contest, setContest] = useState<Contest & { isRegistered?: boolean; problems?: Problem[]; solvedProblemIds?: string[] } | null>(null);
+  const [contest, setContest] = useState<Contest & { isRegistered?: boolean; problems?: Problem[]; solvedProblemIds?: string[]; isFlagged?: boolean; } | null>(null);
   const [activeProblemId, setActiveProblemId] = useState<string | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
