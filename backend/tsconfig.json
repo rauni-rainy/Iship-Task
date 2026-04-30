@@ -12,5 +12,8 @@
       "@shared/*": ["../shared/*"]
     }
   },
-  "include": ["src/**/*", "../shared/**/*"]
+  "include": ["src/**/*", "../shared/**/*"],
+  "ts-node": {
+    "files": true
+  }
 }

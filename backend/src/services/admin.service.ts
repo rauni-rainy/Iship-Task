@@ -33,7 +33,7 @@ export const getContestLiveStats = async (contestId: string) => {
            COUNT(s.id) as "totalAttempts",
            COUNT(CASE WHEN s.verdict = 'accepted' THEN 1 END) as "solveCount"
     FROM problems p
-    LEFT JOIN submissions s ON p.id = s.problem_id
+    LEFT JOIN submissions s ON p.id = s.problem_id AND s.contest_id = $1
     WHERE p.contest_id = $1
     GROUP BY p.id, p.title
   `, [contestId]);
@@ -68,7 +68,7 @@ export const getContestLiveStats = async (contestId: string) => {
 
 export const getFlaggedUsers = async (contestId: string) => {
   const res = await pool.query(`
-    SELECT r.user_id as "userId", u.username, u.email, r.flag_reason as "flagReason", r.flag_count as "flagCount", r.updated_at as "flaggedAt"
+    SELECT r.user_id as "userId", u.username, u.email, r.flag_reason as "flagReason", r.flag_count as "flagCount", r.registered_at as "flaggedAt"
     FROM registrations r
     JOIN users u ON r.user_id = u.id
     WHERE r.contest_id = $1 AND r.is_flagged = true
@@ -103,13 +103,24 @@ export const getOnlineUsers = async (contestId: string) => {
   }));
 };
 
+export const getRegisteredUsers = async (contestId: string) => {
+  const res = await pool.query(`
+    SELECT r.user_id as "userId", u.username, r.registered_at as "registeredAt"
+    FROM registrations r
+    JOIN users u ON r.user_id = u.id
+    WHERE r.contest_id = $1
+    ORDER BY r.registered_at DESC
+  `, [contestId]);
+  return res.rows;
+};
+
 export const getAllSubmissionsForAdmin = async (contestId: string, { page = 1, limit = 20, verdict, userId }: any) => {
   const offset = (page - 1) * limit;
   let query = `
     SELECT s.*, u.username, p.title as problem_title
     FROM submissions s
-    JOIN users u ON s.user_id = u.id
-    JOIN problems p ON s.problem_id = p.id
+    LEFT JOIN users u ON s.user_id = u.id
+    LEFT JOIN problems p ON s.problem_id = p.id
     WHERE s.contest_id = $1
   `;
   const params: any[] = [contestId];
@@ -152,7 +163,7 @@ export const unflagUser = async (userId: string, contestId: string, adminUserId:
   }
 
   await pool.query(
-    `UPDATE registrations SET is_flagged = false, flag_reason = NULL, updated_at = NOW() WHERE user_id = $1 AND contest_id = $2`,
+    `UPDATE registrations SET is_flagged = false, flag_reason = NULL WHERE user_id = $1 AND contest_id = $2`,
     [userId, contestId]
   );
 

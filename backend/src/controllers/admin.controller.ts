@@ -41,6 +41,12 @@ export const getOnlineUsers = asyncWrapper(async (req: Request, res: Response) =
   res.status(200).json({ success: true, onlineUsers });
 });
 
+export const getRegisteredUsers = asyncWrapper(async (req: Request, res: Response) => {
+  const contestId = req.params.contestId as string;
+  const registeredUsers = await adminService.getRegisteredUsers(contestId);
+  res.status(200).json({ success: true, registeredUsers });
+});
+
 export const getAllSubmissionsForAdmin = asyncWrapper(async (req: Request, res: Response) => {
   const contestId = req.params.contestId as string;
   const { page, limit, verdict, userId } = req.query;

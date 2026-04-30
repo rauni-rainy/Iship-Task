@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { Problem, Submission } from '@shared/types';
 import Editor from '@monaco-editor/react';
@@ -12,6 +14,7 @@ interface ProblemViewerProps {
   problem: Problem;
   contestId: string;
   contestStatus?: string;
+  isFlagged?: boolean;
 }
 
 const defaultCode: Record<string, string> = {
@@ -22,7 +25,7 @@ const defaultCode: Record<string, string> = {
   c: '#include <stdio.h>\n\nint main() {\n    // your code goes here\n    return 0;\n}'
 };
 
-export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId, contestStatus }) => {
+export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId, contestStatus, isFlagged }) => {
   const [activeTab, setActiveTab] = useState<'statement' | 'submit' | 'submissions'>('statement');
   
   const [language, setLanguage] = useState<string>('cpp');
@@ -81,30 +84,52 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId
   }, [submissions]);
 
   useEffect(() => {
+    // Always fetch submissions on mount and on problem change
+    fetchSubmissions();
+  }, [problem.id]);
+
+  useEffect(() => {
     if (activeTab === 'submissions') {
       fetchSubmissions();
     }
-  }, [activeTab, problem.id]);
+    if (activeTab === 'submit' && (isFlagged || contestStatus === 'ended')) {
+      setActiveTab('statement');
+    }
+  }, [activeTab, problem.id, isFlagged, contestStatus]);
 
   useEffect(() => {
     const cleanup = onSubmissionJudged((data) => {
       if (data.problem_id === problem.id || data.problemId === problem.id) {
-        setSubmissions(prev => prev.map(s => s.id === data.id ? data : s));
-        
+        setSubmissions(prev => {
+          const updated = prev.map(s => s.id === data.id ? data : s);
+          return updated;
+        });
+
+        const isFirstAC = data.verdict === 'accepted' && !submissions.some(s => s.verdict === 'accepted');
+
         if (data.verdict === 'accepted') {
-          toast.custom((t) => (
-            <div className="bg-green-900 border border-green-500 text-white p-4 rounded-lg flex items-center gap-3">
-              <CheckCircle2 className="text-green-400" />
-              <div>
-                <p className="font-bold">Accepted</p>
-                <p className="text-sm text-green-200">Problem: {problem.title}</p>
+          if (isFirstAC) {
+            toast.custom(() => (
+              <div className="bg-green-900 border border-green-500 text-white p-4 rounded-lg max-w-sm">
+                <p className="font-bold text-lg">🎉 Problem Solved!</p>
+                <p className="text-sm text-green-200 mt-1">Score locked in: <span className="font-bold text-white">{data.score} pts</span>. Further submissions to this problem won't affect your rank.</p>
               </div>
-            </div>
-          ));
+            ), { duration: 8000 });
+          } else {
+            toast.custom(() => (
+              <div className="bg-green-900 border border-green-500 text-white p-4 rounded-lg flex items-center gap-3">
+                <CheckCircle2 className="text-green-400 shrink-0" />
+                <div>
+                  <p className="font-bold">Accepted</p>
+                  <p className="text-sm text-green-200">This submission won't change your score (already solved).</p>
+                </div>
+              </div>
+            ));
+          }
         } else {
-          toast.custom((t) => (
+          toast.custom(() => (
             <div className="bg-red-900 border border-red-500 text-white p-4 rounded-lg flex items-center gap-3">
-              <XCircle className="text-red-400" />
+              <XCircle className="text-red-400 shrink-0" />
               <div>
                 <p className="font-bold capitalize">{data.verdict.replace(/_/g, ' ')}</p>
                 <p className="text-sm text-red-200">Problem: {problem.title}</p>
@@ -144,12 +169,14 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId
         >
           Problem Statement
         </button>
-        <button 
-          onClick={() => setActiveTab('submit')}
-          className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'submit' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
-        >
-          Submit
-        </button>
+        {!isFlagged && contestStatus !== 'ended' && (
+          <button 
+            onClick={() => setActiveTab('submit')}
+            className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'submit' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
+          >
+            Submit
+          </button>
+        )}
         <button 
           onClick={() => setActiveTab('submissions')}
           className={`px-6 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'submissions' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}
@@ -249,15 +276,8 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId
           </div>
         )}
 
-        {activeTab === 'submit' && (
+        {activeTab === 'submit' && !isFlagged && contestStatus !== 'ended' && (
           <div className="flex flex-col h-full p-4">
-            {contestStatus === 'ended' ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-12 bg-zinc-900 border border-zinc-800 rounded-2xl">
-                <Trophy className="w-16 h-16 text-zinc-700 mb-6" />
-                <h2 className="text-2xl font-bold text-white mb-2">Contest Ended</h2>
-                <p className="text-zinc-500">Submissions are disabled. You can still view problems and review the leaderboard.</p>
-              </div>
-            ) : (
               <>
                 <div className="p-4 bg-zinc-900 flex justify-between items-center shrink-0 border border-zinc-800 rounded-t-xl">
                   <select 
@@ -272,9 +292,9 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId
                     <option value="c">C (GCC)</option>
                   </select>
 
-                  <Button onClick={submitCode} disabled={isSubmitting || !code.trim()} className="px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
+                  <Button onClick={submitCode} disabled={isSubmitting || !code.trim() || submissions.some(s => s.verdict === 'pending')} className="px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:bg-zinc-800 disabled:text-zinc-500">
                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                    Submit Code
+                    {submissions.some(s => s.verdict === 'pending') ? 'Submission Pending...' : 'Submit Code'}
                   </Button>
                 </div>
                 <div className="flex-1 min-h-[400px] border border-t-0 border-zinc-800 rounded-b-xl overflow-hidden">
@@ -285,6 +305,7 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId
                     value={code}
                     onChange={(val) => setCode(val || '')}
                     options={{
+                      readOnly: isFlagged || contestStatus === 'ended',
                       fontSize: 14,
                       tabSize: 4,
                       minimap: { enabled: false },
@@ -294,7 +315,6 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId
                   />
                 </div>
               </>
-            )}
           </div>
         )}
 
@@ -361,12 +381,12 @@ export const ProblemViewer: React.FC<ProblemViewerProps> = ({ problem, contestId
                 ×
               </button>
             </div>
-            <div className="flex-1 min-h-[500px]">
+            <div className="p-4 bg-slate-950">
               <Editor
-                height="100%"
+                height="500px"
                 language={viewCodeModal.language}
                 theme="vs-dark"
-                value={viewCodeModal.code}
+                value={viewCodeModal.code || '// No code available'}
                 options={{ readOnly: true, minimap: { enabled: false }, fontSize: 14 }}
               />
             </div>

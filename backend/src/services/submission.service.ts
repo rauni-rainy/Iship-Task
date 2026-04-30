@@ -12,6 +12,11 @@ export const submitCode = async (userId: string, problemId: string, contestId: s
   const regRes = await pool.query('SELECT is_flagged FROM registrations WHERE user_id = $1 AND contest_id = $2', [userId, contestId]);
   if (regRes.rows.length === 0) throw new AppError('User not registered for this contest', 403);
   const isFlagged = regRes.rows[0].is_flagged;
+  if (isFlagged) throw new AppError('You have been disqualified and cannot submit.', 403);
+
+  // 1.5 Verify no pending submission
+  const pendingRes = await pool.query("SELECT 1 FROM submissions WHERE user_id = $1 AND problem_id = $2 AND contest_id = $3 AND verdict = 'pending'", [userId, problemId, contestId]);
+  if (pendingRes.rows.length > 0) throw new AppError('You have a pending submission for this problem. Please wait for it to be judged.', 400);
 
   // 2. Verify problem belongs to contest
   const probRes = await pool.query('SELECT id, points FROM problems WHERE id = $1 AND contest_id = $2', [problemId, contestId]);
@@ -85,21 +90,20 @@ const judgeSubmission = async (submissionId: string, userId: string, problemId: 
       }
     } else {
       const ps = scoreRes.rows[0];
-      const newAttempts = ps.attempts + 1;
       
-      if (verdict === 'accepted') {
-        if (!ps.first_accepted_at) { // First AC
+      // If already accepted, we completely ignore further submissions for scoring/penalty purposes.
+      if (!ps.first_accepted_at) {
+        const newAttempts = ps.attempts + 1;
+        
+        if (verdict === 'accepted') {
           isFirstAC = true;
           await client.query(
             `UPDATE problem_scores SET best_score = $1, attempts = $2, first_accepted_at = NOW() WHERE id = $3`,
             [score, newAttempts, ps.id]
           );
         } else {
-          // Already AC'd, just increment attempts (or ignore, but we'll increment)
           await client.query(`UPDATE problem_scores SET attempts = $1 WHERE id = $2`, [newAttempts, ps.id]);
         }
-      } else {
-        await client.query(`UPDATE problem_scores SET attempts = $1 WHERE id = $2`, [newAttempts, ps.id]);
       }
     }
 
@@ -127,6 +131,26 @@ const judgeSubmission = async (submissionId: string, userId: string, problemId: 
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Judging failed:', error);
+    // Ensure the submission never stays stuck in "pending"
+    try {
+      await pool.query(
+        `UPDATE submissions SET verdict = 'compilation_error', judged_at = NOW() WHERE id = $1`,
+        [submissionId]
+      );
+      const io = getIO();
+      if (io) {
+        io.to(`user:${userId}`).emit('submission:judged', {
+          id: submissionId,
+          problem_id: problemId,
+          contest_id: contestId,
+          verdict: 'compilation_error',
+          score: 0,
+          judged_at: new Date()
+        });
+      }
+    } catch (e) {
+      console.error('Failed to recover broken submission:', e);
+    }
   } finally {
     client.release();
   }
@@ -162,7 +186,7 @@ const recalculateUserLeaderboard = async (client: any, userId: string, contestId
 };
 
 export const getSubmissions = async (userId: string, contestId: string, problemId?: string) => {
-  let query = 'SELECT id, problem_id, contest_id, language, verdict, score, submitted_at, judged_at FROM submissions WHERE user_id = $1 AND contest_id = $2';
+  let query = 'SELECT id, problem_id, contest_id, language, verdict, score, submitted_at, judged_at, code FROM submissions WHERE user_id = $1 AND contest_id = $2';
   const params: any[] = [userId, contestId];
   if (problemId) {
     params.push(problemId);

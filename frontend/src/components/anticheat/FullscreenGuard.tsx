@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Lock } from 'lucide-react';
 import { useAntiCheat } from '@/hooks/useAntiCheat';
@@ -8,20 +10,28 @@ interface FullscreenGuardProps {
   contestId: string;
   isContestRunning: boolean;
   isRegistered: boolean;
+  isFlagged?: boolean;
+  hasFinished?: boolean;
 }
 
 export const FullscreenGuard: React.FC<FullscreenGuardProps> = ({
   children,
   contestId,
   isContestRunning,
-  isRegistered
+  isRegistered,
+  isFlagged,
+  hasFinished
 }) => {
   const [hasAcknowledged, setHasAcknowledged] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
 
+  // Bypass: flagged users and users who've solved all problems skip anti-cheat
+  const bypass = !!isFlagged || !!hasFinished;
+
+  // ⚠️ All hooks must be called unconditionally (Rules of Hooks)
   const { isFullscreen, warningActive, warningTimeLeft, requestFullscreen } = useAntiCheat({
     contestId,
-    isContestRunning: isContestRunning && isRegistered && hasAcknowledged && !isBlocked
+    isContestRunning: !bypass && isContestRunning && isRegistered && hasAcknowledged && !isBlocked
   });
 
   useEffect(() => {
@@ -33,21 +43,9 @@ export const FullscreenGuard: React.FC<FullscreenGuardProps> = ({
     }
   }, []);
 
-  if (isBlocked) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-center p-4">
-        <div className="bg-red-900/30 p-6 rounded-full mb-6">
-          <AlertTriangle className="w-16 h-16 text-red-500" />
-        </div>
-        <h1 className="text-4xl font-bold text-white mb-4">Contest Terminated</h1>
-        <p className="text-slate-400 max-w-md mb-8">
-          Your session was automatically submitted due to a policy violation (exiting fullscreen or switching tabs). You can no longer participate in this contest.
-        </p>
-        <Button onClick={() => window.location.href = `/contests/${contestId}`}>
-          Return to Contest Overview
-        </Button>
-      </div>
-    );
+  // After all hooks: conditional renders are safe here
+  if (bypass) {
+    return <>{children}</>;
   }
 
   if (isContestRunning && isRegistered && !hasAcknowledged) {
@@ -64,7 +62,7 @@ export const FullscreenGuard: React.FC<FullscreenGuardProps> = ({
             This contest requires fullscreen mode. Tab switching or exiting fullscreen
             will result in a warning. A second violation will automatically submit your contest.
           </p>
-          <Button 
+          <Button
             className="w-full py-6 text-lg font-semibold"
             onClick={() => {
               requestFullscreen();
@@ -88,14 +86,12 @@ export const FullscreenGuard: React.FC<FullscreenGuardProps> = ({
             <p className="text-slate-700 dark:text-slate-300 text-lg mb-6 font-medium">
               You have exited the contest window. Return immediately!
             </p>
-            
             <div className="text-7xl font-mono font-bold text-red-600 dark:text-red-500 mb-8 animate-pulse">
               {warningTimeLeft}
             </div>
-
-            <Button 
+            <Button
               size="lg"
-              variant="danger" 
+              variant="danger"
               className="w-full text-lg h-14 font-bold tracking-wide"
               onClick={requestFullscreen}
             >
@@ -107,7 +103,7 @@ export const FullscreenGuard: React.FC<FullscreenGuardProps> = ({
           </div>
         </div>
       )}
-      
+
       <div className={isContestRunning && isRegistered && hasAcknowledged && !isFullscreen && !warningActive ? 'opacity-0 pointer-events-none' : ''}>
         {children}
       </div>

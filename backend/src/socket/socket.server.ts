@@ -61,8 +61,12 @@ export const initializeSocket = (httpServer: HttpServer) => {
         const lb = await submissionService.getLeaderboard(contestId);
         socket.emit('leaderboard:snapshot', lb);
 
+        const userRes = await pool.query('SELECT username FROM users WHERE id = $1', [user.id]);
+        const username = userRes.rows[0]?.username;
+
         io.to(`admin:contest:${contestId}`).emit('admin:user_joined', {
           userId: user.id,
+          username,
           timestamp: new Date()
         });
 
@@ -97,6 +101,14 @@ export const initializeSocket = (httpServer: HttpServer) => {
     });
 
     socket.on('ping:alive', () => {});
+
+    // Auto-join personal room for receiving direct messages (e.g. join_request decisions)
+    socket.join(`user:${user.id}`);
+
+    socket.on('join:user_room', () => {
+      socket.join(`user:${user.id}`);
+    });
+
     
     socket.on('disconnecting', () => {
       for (const room of socket.rooms) {

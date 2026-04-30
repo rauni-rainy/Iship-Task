@@ -3,6 +3,7 @@ import { asyncWrapper } from '../utils/asyncWrapper';
 import * as contestService from '../services/contest.service';
 import { AppError } from '../utils/errorHandler';
 
+
 const validateContestInput = (data: any) => {
   const errors: Record<string, string> = {};
   if (!data.title || typeof data.title !== 'string' || data.title.trim().length === 0) errors.title = 'Title is required';
@@ -82,11 +83,37 @@ export const deleteContest = asyncWrapper(async (req: Request, res: Response) =>
 export const registerForContest = asyncWrapper(async (req: Request, res: Response) => {
   const contestId = req.params.id as string;
   const userId = req.user!.userId;
-  const { inviteToken } = req.body;
 
-  const registration = await contestService.registerForContest(userId, contestId, inviteToken);
+  const registration = await contestService.registerForContest(userId, contestId);
   res.status(201).json({ success: true, registration });
 });
+
+export const getInvites = asyncWrapper(async (req: Request, res: Response) => {
+  const contestId = req.params.id as string;
+  const requesterId = req.user!.userId;
+  const invites = await contestService.getInvites(contestId, requesterId);
+  res.status(200).json({ success: true, invites });
+});
+
+export const addInvite = asyncWrapper(async (req: Request, res: Response) => {
+  const contestId = req.params.id as string;
+  const requesterId = req.user!.userId;
+  const { username } = req.body;
+  if (!username || typeof username !== 'string') {
+    return res.status(400).json({ success: false, message: 'username is required' });
+  }
+  const invite = await contestService.addInvite(contestId, requesterId, username.trim());
+  res.status(201).json({ success: true, invite });
+});
+
+export const removeInvite = asyncWrapper(async (req: Request, res: Response) => {
+  const contestId = req.params.id as string;
+  const requesterId = req.user!.userId;
+  const username = req.params.username as string;
+  await contestService.removeInvite(contestId, requesterId, username);
+  res.status(200).json({ success: true });
+});
+
 
 export const getMyRegisteredContests = asyncWrapper(async (req: Request, res: Response) => {
   const userId = req.user!.userId;
@@ -94,7 +121,48 @@ export const getMyRegisteredContests = asyncWrapper(async (req: Request, res: Re
   res.status(200).json({ success: true, contests });
 });
 
+export const getMyInvitedContests = asyncWrapper(async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  const contests = await contestService.getMyInvitedContests(userId);
+  res.status(200).json({ success: true, contests });
+});
+
 export const getPublicStats = asyncWrapper(async (req: Request, res: Response) => {
   const stats = await contestService.getPublicStats();
   res.status(200).json({ success: true, stats });
 });
+
+// ── Join Request controllers ─────────────────────────────────────────────────
+
+export const requestToJoin = asyncWrapper(async (req: Request, res: Response) => {
+  const contestId = req.params.id as string;
+  const userId = req.user!.userId;
+  const { inviteToken } = req.body;
+  if (!inviteToken) return res.status(400).json({ success: false, message: 'inviteToken is required' });
+  const request = await contestService.requestToJoin(userId, contestId, inviteToken);
+  res.status(201).json({ success: true, request });
+});
+
+export const getJoinRequests = asyncWrapper(async (req: Request, res: Response) => {
+  const contestId = req.params.id as string;
+  const requesterId = req.user!.userId;
+  const requests = await contestService.getJoinRequests(contestId, requesterId);
+  res.status(200).json({ success: true, requests });
+});
+
+export const approveJoinRequest = asyncWrapper(async (req: Request, res: Response) => {
+  const contestId = req.params.id as string;
+  const requestId = req.params.requestId as string;
+  const requesterId = req.user!.userId;
+  const result = await contestService.approveJoinRequest(requestId, contestId, requesterId);
+  res.status(200).json({ success: true, request: result });
+});
+
+export const rejectJoinRequest = asyncWrapper(async (req: Request, res: Response) => {
+  const contestId = req.params.id as string;
+  const requestId = req.params.requestId as string;
+  const requesterId = req.user!.userId;
+  const result = await contestService.rejectJoinRequest(requestId, contestId, requesterId);
+  res.status(200).json({ success: true, request: result });
+});
+

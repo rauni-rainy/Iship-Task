@@ -3,7 +3,6 @@ import {
   submitCode,
   getSubmissions,
   getLeaderboard,
-  getSubmissionsForAdmin,
   flagUser,
   getAntiCheatStatus
 } from '../controllers/submission.controller';
@@ -14,7 +13,6 @@ const router = Router();
 router.post('/submissions', authenticate, verifyCsrf, submitCode);
 router.get('/submissions', authenticate, getSubmissions);
 router.get('/contests/:contestId/leaderboard', optionalAuth, getLeaderboard);
-router.get('/admin/contests/:contestId/submissions', authenticate, requireRole('admin'), getSubmissionsForAdmin);
 
 // Anti-Cheat Routes
 router.post('/contests/:contestId/anti-cheat/flag', authenticate, verifyCsrf, flagUser);

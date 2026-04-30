@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
-import xss from 'xss-clean';
+// @ts-ignore
 import hpp from 'hpp';
 import { apiLimiter } from './middleware/rateLimiter.middleware';
 import authRoutes from './routes/auth.routes';
@@ -49,7 +49,7 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 app.use(cookieParser(process.env.COOKIE_SECRET));
 
 // Data sanitization against XSS (cross-site scripting) attacks
-app.use(xss());
+// Note: xss-clean removed due to Express 5 incompatibility. React escapes HTML by default.
 
 // Prevent HTTP Parameter Pollution
 app.use(hpp());
@@ -79,7 +79,7 @@ app.get('/health', (req, res) => {
 });
 
 import { AppError } from './utils/errorHandler';
-app.all('*', (req, res, next) => {
+app.use((req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 

@@ -37,7 +37,10 @@ axiosClient.interceptors.response.use(
       } catch (refreshError) {
         // Refresh failed, user needs to login again
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          const publicPaths = ['/login', '/register', '/'];
+          if (!publicPaths.includes(window.location.pathname)) {
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(refreshError);
       }

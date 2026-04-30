@@ -70,3 +70,25 @@ export const onContestEnded = (cb: (data: any) => void) => {
     socket.off('contest:ended', cb);
   };
 };
+
+export const onInviteRegistered = (cb: (data: { username: string; contestId: string; registeredAt: string }) => void) => {
+  const socket = getSocket();
+  socket.on('invite:registered', cb);
+  return () => {
+    socket.off('invite:registered', cb);
+  };
+};
+
+export const onJoinRequestNew = (cb: (data: any) => void) => {
+  const socket = getSocket();
+  socket.on('join_request:new', cb);
+  return () => { socket.off('join_request:new', cb); };
+};
+
+export const onJoinRequestDecision = (cb: (data: { contestId: string; requestId: string; status: 'approved' | 'rejected'; message: string }) => void) => {
+  const socket = getSocket();
+  socket.on('join_request:decision', cb);
+  return () => { socket.off('join_request:decision', cb); };
+};
+
+

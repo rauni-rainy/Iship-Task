@@ -12,6 +12,7 @@ import { Contest, Problem } from '@shared/types';
 import { toast } from 'react-hot-toast';
 import { ChevronRight, LayoutDashboard, Trophy, Loader2 } from 'lucide-react';
 import { CountdownTimer } from '@/components/contest/CountdownTimer';
+import { onSubmissionJudged } from '@/lib/socket';
 
 export default function ContestArena() {
   const params = useParams();
@@ -19,10 +20,11 @@ export default function ContestArena() {
   const router = useRouter();
   const { user } = useAuthStore();
 
-  const [contest, setContest] = useState<Contest & { isRegistered?: boolean; problems?: Problem[] } | null>(null);
+  const [contest, setContest] = useState<Contest & { isRegistered?: boolean; problems?: Problem[]; solvedProblemIds?: string[] } | null>(null);
   const [activeProblemId, setActiveProblemId] = useState<string | null>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [solvedProblemIds, setSolvedProblemIds] = useState<Set<string>>(new Set());
 
   const { isConnected } = useSocket(contestId);
 
@@ -32,6 +34,8 @@ export default function ContestArena() {
         const res = await axiosClient.get(`/api/contests/${contestId}`);
         const c = res.data.contest;
         setContest(c);
+        // Initialize solved problems
+        setSolvedProblemIds(new Set(c.solvedProblemIds || []));
         
         if (c.problems && c.problems.length > 0) {
           setActiveProblemId(c.problems[0].id);
@@ -51,6 +55,19 @@ export default function ContestArena() {
     fetchContest();
   }, [contestId, router]);
 
+  // Track newly solved problems in real-time via socket
+  useEffect(() => {
+    const cleanup = onSubmissionJudged((data: any) => {
+      if (data.verdict === 'accepted') {
+        const problemId = data.problem_id || data.problemId;
+        if (problemId) {
+          setSolvedProblemIds(prev => new Set([...prev, problemId]));
+        }
+      }
+    });
+    return cleanup;
+  }, []);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -62,15 +79,19 @@ export default function ContestArena() {
   if (!contest) return null;
 
   const isContestRunning = contest.status === 'running';
-  const isRegistered = !!contest.isRegistered || user?.role === 'admin' || user?.id === contest.created_by;
+  const isCreatorOrAdmin = user?.role === 'admin' || user?.id === contest.created_by;
+  const isRegistered = !!contest.isRegistered || isCreatorOrAdmin;
+  const hasFinished = !isCreatorOrAdmin && !!contest.problems?.length && solvedProblemIds.size >= (contest.problems?.length || 0);
 
   const activeProblem = contest.problems?.find(p => p.id === activeProblemId);
 
   return (
     <FullscreenGuard 
       contestId={contestId} 
-      isContestRunning={isContestRunning} 
+      isContestRunning={isContestRunning && !isCreatorOrAdmin} 
       isRegistered={isRegistered}
+      isFlagged={!!contest.isFlagged}
+      hasFinished={hasFinished}
     >
       <div className="h-screen flex flex-col bg-zinc-950 text-zinc-300 overflow-hidden font-sans selection:bg-indigo-500/30">
         
@@ -81,6 +102,11 @@ export default function ContestArena() {
               <div className={`w-2 h-2 rounded-full ${isContestRunning ? 'bg-green-500 animate-pulse' : 'bg-zinc-500'}`} />
               {isContestRunning ? 'Running' : 'Ended'}
             </div>
+            {hasFinished && (
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-yellow-400/10 text-yellow-400 border border-yellow-400/20">
+                🏆 All Problems Solved!
+              </div>
+            )}
           </div>
           
           <div className="flex items-center gap-6">
@@ -175,6 +201,7 @@ export default function ContestArena() {
                   problem={activeProblem} 
                   contestId={contestId} 
                   contestStatus={contest.status}
+                  isFlagged={!!contest.isFlagged}
                 />
               </div>
             ) : (

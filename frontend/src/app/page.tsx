@@ -4,23 +4,26 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import axiosClient from '@/lib/axios';
 import { SkeletonCard } from '@/components/ui/Skeletons';
-import { Trophy, Users, Code2, ChevronRight, Calendar } from 'lucide-react';
+import { Trophy, Users, Code2, ChevronRight, Calendar, Radio } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function HomePage() {
   const [stats, setStats] = useState({ totalContests: 0, totalParticipants: 0 });
   const [contests, setContests] = useState<any[]>([]);
+  const [liveContests, setLiveContests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statsRes, contestsRes] = await Promise.all([
+        const [statsRes, contestsRes, liveRes] = await Promise.all([
           axiosClient.get('/api/contests/stats/public'),
-          axiosClient.get('/api/contests', { params: { status: 'upcoming', isPublic: true, limit: 3 } })
+          axiosClient.get('/api/contests', { params: { status: 'upcoming', isPublic: true, limit: 3 } }),
+          axiosClient.get('/api/contests', { params: { status: 'running', isPublic: true, limit: 3 } }),
         ]);
         setStats(statsRes.data.stats);
         setContests(contestsRes.data.contests);
+        setLiveContests(liveRes.data.contests);
       } catch (err) {
         console.error('Failed to fetch home page data');
       } finally {
@@ -32,7 +35,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-300 font-sans selection:bg-indigo-500/30">
-      {/* Navbar (simple for public) */}
+      {/* Navbar */}
       <header className="fixed top-0 w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2 text-white font-bold text-xl tracking-tight">
@@ -60,7 +63,7 @@ export default function HomePage() {
             Join thousands of developers in real-time competitive programming contests. Sharpen your algorithms, climb the global leaderboard, and prove your skills.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/register" className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-lg transition-all hover:scale-105 shadow-[0_0_40px_-10px_rgba(79,70,229,0.5)]">
+            <Link href="/contests" className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold text-lg transition-all hover:scale-105 shadow-[0_0_40px_-10px_rgba(79,70,229,0.5)]">
               Browse Contests
             </Link>
             <Link href="/contests/create" className="w-full sm:w-auto px-8 py-4 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white rounded-full font-bold text-lg transition-all">
@@ -92,7 +95,69 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Featured Contests */}
+      {/* Live Contests Section — only shown when there are running contests */}
+      {(isLoading || liveContests.length > 0) && (
+        <section className="py-24 px-6 border-b border-zinc-800/50">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex justify-between items-end mb-12">
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="flex items-center gap-2 text-green-400 text-xs font-black uppercase tracking-widest bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Live Now
+                  </span>
+                </div>
+                <h2 className="text-3xl font-bold text-white mb-2">Happening Right Now</h2>
+                <p className="text-zinc-400">These contests are live — jump in and start competing!</p>
+              </div>
+              <Link href="/contests?status=running" className="hidden sm:flex items-center gap-1 text-green-400 hover:text-green-300 font-semibold group">
+                View All <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {isLoading ? (
+                <>
+                  <SkeletonCard />
+                  <SkeletonCard />
+                  <SkeletonCard />
+                </>
+              ) : (
+                liveContests.map((contest, i) => (
+                  <Link key={contest.id} href={`/contests/${contest.id}`} className="group block h-full">
+                    <div
+                      className="bg-zinc-900 border border-green-500/20 rounded-2xl p-6 h-full transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-green-500/10 hover:border-green-500/40 animate-in fade-in slide-in-from-bottom-4"
+                      style={{ animationDelay: `${i * 100}ms` }}
+                    >
+                      <div className="flex justify-between items-start mb-6">
+                        <div className="p-3 bg-green-500/10 rounded-xl text-green-400 group-hover:bg-green-500/20 transition-colors">
+                          <Radio className="w-6 h-6" />
+                        </div>
+                        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-green-400 bg-green-400/10 px-3 py-1 rounded-full border border-green-500/20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Running
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-bold text-white mb-2 group-hover:text-green-400 transition-colors">{contest.title}</h3>
+                      <p className="text-zinc-400 text-sm mb-6 line-clamp-2">{contest.description || 'No description provided.'}</p>
+
+                      <div className="mt-auto pt-6 border-t border-zinc-800/50 flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 text-zinc-300">
+                          <Calendar className="w-4 h-4 text-zinc-500" />
+                          Ends {format(new Date(contest.end_time), 'MMM d, h:mm a')}
+                        </div>
+                        <div className="text-green-400 font-semibold flex items-center gap-1">
+                          Join Now <ChevronRight className="w-3 h-3" />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Upcoming Contests Section */}
       <section className="py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-end mb-12">
@@ -100,7 +165,7 @@ export default function HomePage() {
               <h2 className="text-3xl font-bold text-white mb-2">Upcoming Contests</h2>
               <p className="text-zinc-400">Register now and prepare for the next challenge.</p>
             </div>
-            <Link href="/register" className="hidden sm:flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-semibold group">
+            <Link href="/contests?status=upcoming" className="hidden sm:flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-semibold group">
               View All <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </Link>
           </div>
@@ -121,17 +186,20 @@ export default function HomePage() {
               </div>
             ) : (
               contests.map((contest, i) => (
-                <Link key={contest.id} href="/register" className="group block h-full">
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 h-full transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10 hover:border-zinc-700 animate-in fade-in slide-in-from-bottom-4" style={{ animationDelay: `${i * 100}ms` }}>
+                <Link key={contest.id} href={`/contests/${contest.id}`} className="group block h-full">
+                  <div
+                    className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 h-full transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10 hover:border-zinc-700 animate-in fade-in slide-in-from-bottom-4"
+                    style={{ animationDelay: `${i * 100}ms` }}
+                  >
                     <div className="flex justify-between items-start mb-6">
                       <div className="p-3 bg-zinc-800/50 rounded-xl text-indigo-400 group-hover:bg-indigo-500/10 group-hover:text-indigo-300 transition-colors">
                         <Trophy className="w-6 h-6" />
                       </div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-green-400 bg-green-400/10 px-3 py-1 rounded-full">Upcoming</span>
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-3 py-1 rounded-full">Upcoming</span>
                     </div>
                     <h3 className="text-xl font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors">{contest.title}</h3>
                     <p className="text-zinc-400 text-sm mb-6 line-clamp-2">{contest.description || 'No description provided.'}</p>
-                    
+
                     <div className="mt-auto pt-6 border-t border-zinc-800/50 flex items-center justify-between text-sm">
                       <div className="flex items-center gap-2 text-zinc-300">
                         <Calendar className="w-4 h-4 text-zinc-500" />
@@ -144,7 +212,7 @@ export default function HomePage() {
               ))
             )}
           </div>
-          <Link href="/register" className="sm:hidden mt-8 flex items-center justify-center gap-1 text-indigo-400 hover:text-indigo-300 font-semibold group w-full bg-zinc-900 py-3 rounded-xl border border-zinc-800">
+          <Link href="/contests" className="sm:hidden mt-8 flex items-center justify-center gap-1 text-indigo-400 hover:text-indigo-300 font-semibold group w-full bg-zinc-900 py-3 rounded-xl border border-zinc-800">
             View All Contests <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
@@ -159,7 +227,7 @@ export default function HomePage() {
           <div className="flex gap-6 text-sm text-zinc-500 font-medium">
             <Link href="/login" className="hover:text-white transition-colors">Login</Link>
             <Link href="/register" className="hover:text-white transition-colors">Register</Link>
-            <Link href="/register" className="hover:text-white transition-colors">Browse Contests</Link>
+            <Link href="/contests" className="hover:text-white transition-colors">Browse Contests</Link>
           </div>
           <div className="text-sm text-zinc-600">
             &copy; {new Date().getFullYear()} ContestHub. All rights reserved.

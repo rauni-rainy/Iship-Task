@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 import axiosClient from '@/lib/axios';
 
 interface UseAntiCheatProps {
@@ -20,6 +21,8 @@ export const useAntiCheat = ({ contestId, isContestRunning }: UseAntiCheatProps)
   stateRef.current = { isContestRunning, warningActive, hasGracePeriod, violationCount };
 
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastViolationReasonRef = useRef<string>('unknown');
+
 
   useEffect(() => {
     const initStatus = async () => {
@@ -59,6 +62,8 @@ export const useAntiCheat = ({ contestId, isContestRunning }: UseAntiCheatProps)
     
     if (!isContestRunning) return;
     if (warningActive) return;
+    
+    lastViolationReasonRef.current = reason;
 
     if (!hasGracePeriod) {
       triggerAutoSubmit(reason);
@@ -86,17 +91,24 @@ export const useAntiCheat = ({ contestId, isContestRunning }: UseAntiCheatProps)
     
     try {
       await axiosClient.post(`/api/contests/${contestId}/anti-cheat/flag`, {
-        reason: 'fullscreen_exit',
+        reason: lastViolationReasonRef.current,
         isAutoSubmit: false
       });
       setHasGracePeriod(false);
       setViolationCount(prev => prev + 1);
+      toast.error('WARNING: You left the contest window. One more violation will result in auto-submission!', { duration: 5000 });
     } catch (e) {
       console.error(e);
     }
   };
 
   const requestFullscreen = async () => {
+    if (document.fullscreenElement) {
+      if (stateRef.current.warningActive) {
+        clearWarning();
+      }
+      return;
+    }
     const docElm = document.documentElement as any;
     try {
       if (docElm.requestFullscreen) {
@@ -145,16 +157,26 @@ export const useAntiCheat = ({ contestId, isContestRunning }: UseAntiCheatProps)
       }
     };
 
+    const onFocus = () => {
+      if (stateRef.current.isContestRunning && stateRef.current.warningActive) {
+        if (document.fullscreenElement) {
+          clearWarning();
+        }
+      }
+    };
+
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('webkitfullscreenchange', onFullscreenChange);
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
 
     return () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
       if (warningTimerRef.current) clearInterval(warningTimerRef.current);
     };
   }, []);

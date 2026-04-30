@@ -7,7 +7,7 @@ import axiosClient from '@/lib/axios';
 import { getSocket, joinAdmin } from '@/lib/socket';
 import { toast } from 'react-hot-toast';
 import { 
-  Users, Activity, Flag, FileCode2, LayoutDashboard, CheckCircle2, AlertTriangle, RefreshCw, ChevronLeft
+  Users, Activity, Flag, FileCode2, LayoutDashboard, CheckCircle2, AlertTriangle, RefreshCw, ChevronLeft, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [activityFeed, setActivityFeed] = useState<any[]>([]);
   const [flaggedUsers, setFlaggedUsers] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
 
   const [isLive, setIsLive] = useState(false);
@@ -30,6 +31,11 @@ export default function AdminDashboard() {
 
   const [page, setPage] = useState(1);
   const [verdictFilter, setVerdictFilter] = useState('');
+  const [participantsFilter, setParticipantsFilter] = useState<'all' | 'online' | 'offline'>('all');
+  
+  const [historyUser, setHistoryUser] = useState<any>(null);
+  const [historySubmissions, setHistorySubmissions] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   
   useEffect(() => {
     if (!isHydrated) return;
@@ -41,7 +47,10 @@ export default function AdminDashboard() {
     fetchStats();
     if (activeTab === 'flagged') fetchFlagged();
     if (activeTab === 'submissions') fetchSubmissions();
-    if (activeTab === 'participants') fetchOnlineUsers();
+    if (activeTab === 'participants') {
+      fetchOnlineUsers();
+      fetchRegisteredUsers();
+    }
 
     const socket = getSocket();
     joinAdmin(contestId);
@@ -132,6 +141,15 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchRegisteredUsers = async () => {
+    try {
+      const res = await axiosClient.get(`/api/admin/contests/${contestId}/registered`);
+      setRegisteredUsers(res.data.registeredUsers);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const unflagUser = async (userId: string) => {
     if (!confirm('Are you sure you want to unflag this user?')) return;
     try {
@@ -143,6 +161,26 @@ export default function AdminDashboard() {
       toast.error('Failed to unflag user');
     }
   };
+
+  const fetchHistory = async (userId: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const res = await axiosClient.get(`/api/admin/contests/${contestId}/submissions`, {
+        params: { limit: 100, userId }
+      });
+      setHistorySubmissions(res.data.submissions || []);
+    } catch (e) {
+      toast.error('Failed to load history');
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (historyUser) {
+      fetchHistory(historyUser.userId);
+    }
+  }, [historyUser]);
 
   if (isLoading || !isHydrated) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Loading Admin Dashboard...</div>;
 
@@ -188,7 +226,7 @@ export default function AdminDashboard() {
           if (activeTab === 'overview') fetchStats();
           if (activeTab === 'submissions') fetchSubmissions();
           if (activeTab === 'flagged') fetchFlagged();
-          if (activeTab === 'participants') fetchOnlineUsers();
+          if (activeTab === 'participants') { fetchOnlineUsers(); fetchRegisteredUsers(); }
         }} className="absolute top-8 right-8 p-2 text-slate-400 hover:text-white bg-slate-800 rounded-full transition-colors">
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -359,7 +397,7 @@ export default function AdminDashboard() {
                           sub.verdict === 'auto_submitted' ? 'bg-blue-500/10 text-blue-400' :
                           'bg-red-500/10 text-red-400'
                         }`}>
-                          {sub.verdict.replace(/_/g, ' ')}
+                          {(sub.verdict || 'unknown').replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-slate-400">{new Date(sub.submitted_at).toLocaleTimeString()}</td>
@@ -377,7 +415,24 @@ export default function AdminDashboard() {
 
         {activeTab === 'participants' && (
           <div className="max-w-6xl mx-auto animate-in fade-in duration-300">
-            <h1 className="text-3xl font-bold text-white mb-6">Online Participants</h1>
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-3xl font-bold text-white">Registered Participants</h1>
+              <div className="flex items-center gap-4">
+                <select 
+                  value={participantsFilter} 
+                  onChange={e => setParticipantsFilter(e.target.value as any)}
+                  className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 outline-none focus:border-blue-500 text-sm"
+                >
+                  <option value="all">All Participants</option>
+                  <option value="online">Online Only</option>
+                  <option value="offline">Offline Only</option>
+                </select>
+                <div className="text-sm font-medium bg-slate-800 border border-slate-700 px-4 py-2 rounded-lg">
+                  <span className="text-green-400 font-bold">{onlineUsers.length}</span> Online / {registeredUsers.length} Total
+                </div>
+              </div>
+            </div>
+            
             <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-lg overflow-hidden">
               <table className="w-full text-left text-sm text-slate-300">
                 <thead className="text-xs uppercase bg-slate-800/50 text-slate-400">
@@ -385,26 +440,43 @@ export default function AdminDashboard() {
                     <th className="px-5 py-4">Status</th>
                     <th className="px-5 py-4">Username</th>
                     <th className="px-5 py-4">User ID</th>
+                    <th className="px-5 py-4">Registered At</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                  {onlineUsers.map(user => (
-                    <tr key={user.userId} className="hover:bg-slate-800/30">
-                      <td className="px-5 py-4">
-                        <span className="flex items-center gap-2 text-xs font-medium text-green-400">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                          </span>
-                          Online
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 font-bold text-white">{user.username || 'Unknown'}</td>
-                      <td className="px-5 py-4 font-mono text-xs text-slate-500">{user.userId}</td>
-                    </tr>
-                  ))}
-                  {onlineUsers.length === 0 && (
-                    <tr><td colSpan={3} className="px-5 py-12 text-center text-slate-500">No users currently online</td></tr>
+                  {registeredUsers.filter(user => {
+                    const isOnline = onlineUsers.some(u => u.userId === user.userId);
+                    if (participantsFilter === 'online') return isOnline;
+                    if (participantsFilter === 'offline') return !isOnline;
+                    return true;
+                  }).map(user => {
+                    const isOnline = onlineUsers.some(u => u.userId === user.userId);
+                    return (
+                      <tr key={user.userId} className="hover:bg-slate-800/30">
+                        <td className="px-5 py-4">
+                          {isOnline ? (
+                            <span className="flex items-center gap-2 text-xs font-medium text-green-400">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                              </span>
+                              Online
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                              <span className="h-2 w-2 rounded-full bg-slate-600"></span>
+                              Offline
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 font-bold text-white">{user.username || 'Unknown'}</td>
+                        <td className="px-5 py-4 font-mono text-xs text-slate-500">{user.userId}</td>
+                        <td className="px-5 py-4 text-slate-400">{new Date(user.registeredAt).toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                  {registeredUsers.length === 0 && (
+                    <tr><td colSpan={4} className="px-5 py-12 text-center text-slate-500">No registered participants found</td></tr>
                   )}
                 </tbody>
               </table>
@@ -449,7 +521,7 @@ export default function AdminDashboard() {
                       Last flag: {new Date(u.flaggedAt).toLocaleString()}
                     </div>
                     <div className="flex gap-3">
-                      <Button variant="ghost" className="flex-1 text-sm border border-slate-700 hover:bg-slate-800">History</Button>
+                      <Button variant="ghost" className="flex-1 text-sm border border-slate-700 hover:bg-slate-800" onClick={() => setHistoryUser(u)}>History</Button>
                       <Button variant="danger" className="flex-1 text-sm" onClick={() => unflagUser(u.userId)}>Unflag</Button>
                     </div>
                   </div>
@@ -460,6 +532,63 @@ export default function AdminDashboard() {
         )}
 
       </main>
+
+      {/* History Modal */}
+      {historyUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 rounded-xl border border-slate-700 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl animate-in zoom-in-95">
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+              <div>
+                <h3 className="text-xl font-bold text-white">Flag History: {historyUser.username}</h3>
+                <p className="text-sm text-slate-400 mt-1">Review auto-submissions and activities</p>
+              </div>
+              <button 
+                onClick={() => setHistoryUser(null)}
+                className="text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {isLoadingHistory ? (
+                <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
+              ) : historySubmissions.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">No submission history found for this user.</div>
+              ) : (
+                <div className="relative border-l-2 border-slate-800 ml-4 space-y-6">
+                  {historySubmissions.map((sub: any, idx: number) => {
+                    const isFlag = sub.is_auto_submitted || sub.verdict === 'auto_submitted';
+                    return (
+                      <div key={sub.id} className="relative pl-6">
+                        <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 border-slate-900 ${isFlag ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                        <div className={`p-4 rounded-xl border ${isFlag ? 'bg-red-950/20 border-red-900/50' : 'bg-slate-800/30 border-slate-700'}`}>
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-white">
+                              {isFlag ? <span className="text-red-400 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Auto-Submitted (Flag)</span> : `Submission for ${sub.problem_title}`}
+                            </h4>
+                            <span className="text-xs font-mono text-slate-500">{new Date(sub.submitted_at).toLocaleString()}</span>
+                          </div>
+                          {!isFlag && (
+                            <div className="flex gap-4 text-sm mt-2">
+                              <span className="text-slate-400">Verdict: <span className={sub.verdict === 'accepted' ? 'text-green-400 font-bold' : 'text-slate-300 font-bold'}>{(sub.verdict || 'unknown').replace(/_/g, ' ').toUpperCase()}</span></span>
+                              <span className="text-slate-400">Score: <span className="text-white font-bold">{sub.score}</span></span>
+                            </div>
+                          )}
+                          {isFlag && (
+                            <div className="text-sm text-red-300/80 mt-1">
+                              This submission was automatically generated by the anti-cheat system due to a violation.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
