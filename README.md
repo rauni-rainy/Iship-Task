@@ -9,7 +9,7 @@ ContestHub is a fully-featured, real-time Competitive Programming Platform built
 * **Live Contest Management:** Organizers get a real-time admin dashboard to monitor participants, approve join requests, and view live status.
 * **Secure Authentication:** JWT-based authentication with secure `httpOnly` cross-site cookies.
 * **Responsive UI:** A modern, dark-themed UI built with Next.js and Tailwind CSS.
-**Security and Attacks:** Proper protocols set up for XSS attacks, CSRF tokens, reverse proxy and load balancing.
+* **Security and Attacks:** Proper protocols set up for XSS attacks, CSRF tokens, reverse proxy and load balancing.
 * **Cloud Native:** Fully Dockerized architecture ready for deployment on Google Cloud Run.
 
 ##  Tech Stack
